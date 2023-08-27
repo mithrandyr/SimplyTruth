@@ -1,10 +1,5 @@
 function TestSentenceAsValidSL {
     param([parameter(Mandatory, ValueFromPipeline)][ValidateNotNullOrEmpty()][string]$Sentence)
-
-    if($Sentence.Replace(" ","").Length -lt 2) {
-        return "SL expression is too short"
-    }
-
     #determine if invalid tokens in string
     $invalidTokenRegex = "[^A-Z \{\}\[\]\(\)>&~v=]"
     $InvalidTokens = $Sentence | Select-String -CaseSensitive -AllMatches -Pattern $invalidTokenRegex
@@ -69,6 +64,9 @@ class SLConnective {
         elseif($this.connective -eq "~") {
             return ("[SL]::Not({0})" -f $this.first.ToPS())
         }
+        elseif(($null -eq $this.connective) -and ($null -eq $this.second)) {
+            return $this.first.ToPS()
+        }
         else {
             throw "invalid connective: $($this.connective)"
         }
@@ -82,13 +80,6 @@ class SLSentence {
 
     SLSentence([string]$sentence) {
         $Sentence = $Sentence.Replace(" ","")
-        $connectiveCount = $Sentence.Length - $Sentence.Replace("&","").Replace("v","").Replace(">","").Replace("=","").Length
-        $delimCount = $Sentence.Length - $Sentence.Replace("(","").Replace("[","").Replace("{","").Length
-        $removal = $delimCount - $connectiveCount
-        if($removal -gt 0) {
-            $Sentence = $Sentence.Substring($removal+1, ($Sentence.Length-(($removal+1) * 2)))
-        }
-        
         $Sentence.ToCharArray().foreach({$null = $this.ParseQueue.Enqueue($_)})
         $this.MainConnective = $this.ParseConnective([SLConnective]::new())
     }
@@ -113,13 +104,10 @@ class SLSentence {
                 ($token -eq "}" -and ($current.startDelim -eq "{"))
                 ) {}
             else {
-                throw "Invalid token '$token' before '$remaining' -- $current"
+                throw "Invalid token '$token' before '$remaining'"
             }
 
-            if(($token -eq "~") -and ($null -eq $current.connective)){
-                $current.connective = $token
-            }
-            elseif($token -in "(","{","[","~"){
+            if($token -in "(","{","[","~"){
                 $nConnective = [SLConnective]::new()
                 if($token -eq "~") {
                     $nConnective.connective = $token

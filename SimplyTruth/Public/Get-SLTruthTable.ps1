@@ -20,7 +20,8 @@ function Get-SLTruthTable {
     }
 
     foreach($row in $table) {
-        $n = $SL.ToString()
+        $n = $SL.ToString()        
+        if($n.Length -eq 1) { $n = "($n)"}
         $ht = @{}
         $SL.SentenceTokens.foreach({$ht.$_ = $row.$_})
         $v = $SL | Invoke-SLSentence -Parameters $ht
