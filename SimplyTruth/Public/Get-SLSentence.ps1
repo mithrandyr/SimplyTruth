@@ -3,7 +3,7 @@ function Get-SLSentence {
     param([parameter(Mandatory, ValueFromPipeline)][ValidateNotNullOrEmpty()][string]$Sentence)
     if(-not (Test-SLSentence $sentence)) {
         Test-SLSentence $sentence -ShowErrors
-        return
+        throw "Invalid SL Sentence"
     }
 
     return [SLSentence]::new($Sentence)

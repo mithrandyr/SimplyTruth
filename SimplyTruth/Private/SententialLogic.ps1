@@ -1,7 +1,7 @@
 function TestSentenceAsValidSL {
     param([parameter(Mandatory, ValueFromPipeline)][ValidateNotNullOrEmpty()][string]$Sentence)
 
-    if($Sentence.Replace(" ","").Length -lt 3) {
+    if($Sentence.Replace(" ","").Length -lt 2) {
         return "SL expression is too short"
     }
 
@@ -84,9 +84,9 @@ class SLSentence {
         $Sentence = $Sentence.Replace(" ","")
         $connectiveCount = $Sentence.Length - $Sentence.Replace("&","").Replace("v","").Replace(">","").Replace("=","").Length
         $delimCount = $Sentence.Length - $Sentence.Replace("(","").Replace("[","").Replace("{","").Length
-        $removal = $delimCount - $connectiveCount + 1
+        $removal = $delimCount - $connectiveCount
         if($removal -gt 0) {
-            $Sentence = $Sentence.Substring($removal, ($Sentence.Length-($removal * 2)))
+            $Sentence = $Sentence.Substring($removal+1, ($Sentence.Length-(($removal+1) * 2)))
         }
         
         $Sentence.ToCharArray().foreach({$null = $this.ParseQueue.Enqueue($_)})
@@ -115,8 +115,11 @@ class SLSentence {
             else {
                 throw "Invalid token '$token' before '$remaining' -- $current"
             }
-            
-            if($token -in "(","{","[","~"){
+
+            if(($token -eq "~") -and ($null -eq $current.connective)){
+                $current.connective = $token
+            }
+            elseif($token -in "(","{","[","~"){
                 $nConnective = [SLConnective]::new()
                 if($token -eq "~") {
                     $nConnective.connective = $token
@@ -129,7 +132,7 @@ class SLSentence {
                 else {
                     $current.second = $this.ParseConnective($nConnective)
                 }
-            }
+            }            
             elseif($token -in ")","}","]") {
                 $current.endDelim = $token
                 return $current
@@ -154,7 +157,10 @@ class SLSentence {
     }
 
     [string] ToString() {
-        return $this.MainConnective.ToString().SubString(1, $this.MainConnective.ToString().Length -2)
+        if($this.MainConnective.connective -eq "~") { return $this.MainConnective.ToString() }
+        else {
+            return $this.MainConnective.ToString().SubString(1, $this.MainConnective.ToString().Length -2)    
+        }
     }
     
     AddSentenceToken([string]$t) {
