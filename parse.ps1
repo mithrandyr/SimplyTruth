@@ -34,6 +34,9 @@ class SLConnective {
     [string]$connective
     [string]$startDelim = "("
     [string]$endDelim = ")"
+    
+    SLConnective() {}
+    SLConnective([string]$c) { $this.connective = $c }
     [string] ToString() {
         if($this.connective -eq "~") { return ("{0}{1}" -f $this.connective, $this.first) }
         if($null -eq $this.connective) { return $this.first }
@@ -78,7 +81,7 @@ class SLSentence {
         $Sentence = $Sentence.Replace(" ","").ToUpper()
         $Sentence.ToCharArray().foreach({$null = $this.ParseQueue.Enqueue($_)})
         if($this.Validate($Sentence)) {
-            $Sentence.MainConnective = $this.ParseQueue([SLConnective]::new())
+            $Sentence.MainConnective = $this.ParseQueue()
         }
         #$this.MainConnective = $this.ParseConnective([SLConnective]::new())
     }
@@ -88,25 +91,47 @@ class SLSentence {
         $connCount = $totalLength - $sentence.Replace("&","|",">","=","")
         $delimCount = $totalLength - $sentence.Replace("(","[","{","")
 
-        if($delimCount -gt $connCount) { thow "too many delimeters"}
-        if($sentence[0] -in "&","|",">","=") { throw "invalid start of sentence"}
+        if($delimCount -gt $connCount) { thow "too many delimeters" }
+        if($sentence[0] -in "&","|",">","=",")","]","}") { throw "invalid start of sentence" }
+        if($sentence[-1] -in "&","|",">","=","(","[","{","~") { throw "invalid end of sentence" }
 
         return $true
     }
 
-    hidden [SLConnective]Parse([SLConnective]$current){
-        [char]$peek = $null
-        while($this.parseQueue.Count -gt 0) {
-            $token = $this.parseQueue.Dequeue()
-            $this.ParseQueue.TryPeek([ref]$peek)
+    hidden [SLConnective]Parse(){
+        $current = [SLConnective]::new()
+        while($this.curIndex -lt $this.theSentence.Length) {
+            $token = $this.theSentence[$this.curIndex]
+            $prev = if($this.curIndex -gt 0) { $this.theSentence[$this.curIndex - 1] }
+            $next = if($this.curIndex -lt $this.theSentence.Length) { $this.theSentence[$this.curIndex + 1] }
             
             #check validity 2nd time
             if($token -eq "~") {
-                
+                if($prev -notin "(","[","{","&","|",">","=" -or $null -ne $prev){
+                    throw "Negation cannot follow '$prev' in '$($this.theSentence[0..$this.curIndex])'"
+                } else {
+                    $nConn = [SLConnective]::new("~")
+                    if($next -in "(","[","{") { $nConn.first = $this.Parse() }
+                    else {
+                        $nConn.first = [SLAtomic]::new($next)
+                        $this.curIndex += 1
+                    }
+                    
+                    if($null -eq $current.first) { $current.first = $nConn }
+                    else { $current.second = $nConn }
+                }
             }
-            
-            
+            elseif($token -in "&","|",">","="){
+                if($peek -in ")","]","}","&","|",">","=") { throw "Invalid connective, expects Atomic or group"}
+                $current.connective = $token
+            }
+            elseif($token -in "(","[","{"){
 
+            }
+            else {
+                if($null -eq $current.first) { $current.first = [SLAtomic]::new($token) }
+                else { $current.second = [SLAtomic]::new($token) }
+            }
         }
 
         return $current
