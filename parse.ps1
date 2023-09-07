@@ -49,6 +49,7 @@ class SLConnective:SLbase {
             return ("{3}{1}{0}{2}{4}" -f $this.connective, $this.first, $this.second, $this.startDelim, $this.endDelim)
         }
     }
+
     [string] ToPS() {
         
         if($this.connective -eq "&") {
@@ -82,9 +83,7 @@ class SLSentence {
     hidden [string]$theSentence
     hidden [int]$curIndex = 0
 
-    hidden [string[]]$lConnnective = "&","|",">","="
-    hidden [string[]]$lOpenGroup = "(","[","{"
-    hidden [string[]]$lCloseGroup = ")","]","}"
+   
 
     SLSentence([string]$sentence) {
         $Sentence = $Sentence.Replace(" ","").ToUpper()
@@ -107,6 +106,49 @@ class SLSentence {
         if($sentence[-1] -in $this.lConnnective + $this.lOpenGroup + "~") { throw "invalid end of sentence" }
 
         return $true
+    }
+
+    hidden Parse2() {
+        $stack = [System.Collections.Generic.Stack[SLConnective]]::new()
+        $stack.Push([SLConnective]::New())
+        $parser = [SLParser]::new($this.theSentence)
+
+        try {
+            while(-not $parser.IsEnd()) {
+            switch($parser.Token()) {
+                "~" {
+                    if($parser.Previous() -in [SLParser]::lCloseGroup + [SLParser]::lAtomic) { throw }
+
+                    $top = $stack.Pop()
+                    if($null -eq $top.connective){
+
+                    }else {
+
+                    }
+
+                    $item = [SLConnective]::New()
+                    $item.connective = "~"
+                    
+                    if($top)
+                }
+                {$_ -in $this.lConnnective} {
+
+                }
+                {$_ -in $this.lOpenGroup} {
+                    
+                }
+                {$_ -in $this.lCloseGroup} {
+                    
+                }
+                default {
+                    $this.AddSentenceToken($parser.Token())
+                }
+            }
+        }
+        }
+        catch {
+            throw ("Invalid character '{0}' after '{1}' -- {2} cannot follow {3}" -f $parser.Token(), $parser.SoFar(), $parser.TokenType(), $parser.PreviousType())
+        }
     }
 
     hidden [SLConnective]Parse(){
@@ -250,5 +292,72 @@ class SLSentence {
         [string]$logicSentence = $tokenValues.Keys.foreach({'$' + $_.ToUpper() + "=$" + [bool]$tokenValues[$_] + "; "}) -join ""
         $logicSentence += $this.MainConnective.ToPS()
         return (Invoke-Expression $logicSentence)
+    }
+}
+
+class SLParser {
+    hidden [string]$Sentence
+    hidden [int]$Index = 0
+
+    SLParser([string]$x) {
+        $this.Sentence = $x.Replace(" ","").ToUpper()
+        if($this.Sentence.Length -lt 1) { throw "Invalid sentence, must be at least 1 character long" }
+    }
+
+    Reset() {
+        $this.Index = 0
+    }
+
+    [bool] IsEnd() {
+        return $this.Index -ge $this.Sentence.Length
+    }
+    [string] Token() {
+        if($this.IsEnd()) { return $null }
+        else {
+            return $this.Sentence[$this.Index]
+        }
+    }
+    [string] Previous() {
+        if($this.Index -le 0) { return $null }
+        else {
+            return $this.Sentence[$this.Index - 1]
+        }
+    }
+    [string] Remaining() {
+        if($this.IsEnd()) { return $null }
+        else {
+            return $this.Sentence.Substring($this.Index)
+        }
+    }
+    [string] SoFar() {
+        if($this.Index -eq 0) { return $null }
+        else {
+            return $this.Sentence.Substring(0, $this.Index - 1)
+        }
+    }
+
+    [bool] Advance() {
+        $this.Index += 1
+        return $this.IsEnd() -eq $false
+    }
+
+    [string]TokenType() {
+        return [SLParser]::TokenType($this.Token())
+    }
+    [string]PreviousType() {
+        return [SLParser]::TokenType($this.Previous())
+    }
+
+    static [string[]]$lConnnective = "&","|",">","="
+    static [string[]]$lOpenGroup = "(","[","{"
+    static [string[]]$lCloseGroup = ")","]","}"
+    static [string[]]$lAtomic = (65..90).foreach({[char]$_})
+    static [string] TokenType([string]$x) {
+        if($x -eq "~") { return "Negation" }
+        elseif($x -in [SLParser]::lAtomic) { return "Atomic" }
+        elseif($x -in [SLParser]::lOpenGroup) { return "OpenGroup" }
+        elseif($x -in [SLParser]::lCloseGroup) { return "CloseGroup" }
+        elseif($x -in [SLParser]::lConnnective) { return "Connective" }
+        else { return "unknown" }
     }
 }
